@@ -17,6 +17,9 @@ class BoundedBuffer {
     final Lock lock = new ReentrantLock();
     final Condition notFull  = lock.newCondition();
     final Condition notEmpty = lock.newCondition();
+    final Condition bigProducer = lock.newCondition();
+    final Condition bigConsumer = lock.newCondition();
+
     private final Random rand = new Random();
     public final Map<Integer, Integer> mapK = new HashMap<Integer, Integer>();
     public final Map<Integer, Integer> mapP = new HashMap<Integer, Integer>();
@@ -34,7 +37,10 @@ class BoundedBuffer {
         lock.lock();
         try {
             while (count + x.length > items.length)
-                notFull.await();
+                if (x.length > 0.5 * m)
+                    bigProducer.await();
+                else
+                    notFull.await();
 
             for(Object el : x) {
                 items[putptr] = el;
@@ -44,7 +50,8 @@ class BoundedBuffer {
             dPut++;
             addToMap(mapP, x.length);
 //            System.out.println("Put:" + dPut);
-            notEmpty.signal();
+            bigConsumer.signal();
+            notEmpty.signalAll();
         } finally {
             lock.unlock();
         }
@@ -54,7 +61,10 @@ class BoundedBuffer {
         lock.lock();
         try {
             while (count - toConsume < 0)
-                notEmpty.await();
+                if (toConsume > 0.5 * m)
+                    bigConsumer.await();
+                else
+                    notEmpty.await();
 
             Object[] ret = new Object[toConsume];
             for (int i=0;i<toConsume;i++) {
@@ -65,7 +75,8 @@ class BoundedBuffer {
             dTake++;
             addToMap(mapK, toConsume);
 //            System.out.println("Take:" + dTake);
-            notFull.signal();
+            bigProducer.signal();
+            notFull.signalAll();
             return ret;
         } finally {
             lock.unlock();
