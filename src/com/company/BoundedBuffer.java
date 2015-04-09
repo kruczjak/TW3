@@ -44,6 +44,7 @@ class BoundedBuffer {
             dPut++;
             addToMap(mapP, x.length);
 //            System.out.println("Put:" + dPut);
+            notFull.signalAll();
             notEmpty.signal();
         } finally {
             lock.unlock();
@@ -65,6 +66,7 @@ class BoundedBuffer {
             dTake++;
             addToMap(mapK, toConsume);
 //            System.out.println("Take:" + dTake);
+            notEmpty.signalAll();
             notFull.signal();
             return ret;
         } finally {
